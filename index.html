@@ -78,8 +78,11 @@
     color:#fff;font-size:16px;font-weight:700;font-family:inherit;cursor:pointer;
   }
   .add.out{background:var(--out)}
-  .paidline{display:flex;align-items:center;gap:8px;margin:2px 0 10px;font-size:14.5px;color:var(--muted)}
-  .paidline input{width:20px;height:20px;flex:none;accent-color:var(--in)}
+  .paidline{display:flex;gap:6px;margin:2px 0 10px}
+  .pbtn{flex:1;padding:12px 0;border:1px solid var(--line);background:#fff;border-radius:10px;font-size:15px;font-family:inherit;color:var(--muted);cursor:pointer}
+  .pbtn[aria-pressed="true"]{background:#E6F1EE;border-color:var(--in);color:var(--in);font-weight:700}
+  .pbtn.no[aria-pressed="true"]{background:#F8EAE7;border-color:var(--out);color:var(--out)}
+  .paybtn{flex:none;padding:7px 10px;border:1px solid var(--out);background:#fff;color:var(--out);border-radius:8px;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer}
 
   /* 목록 */
   .list{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden}
@@ -150,7 +153,10 @@
       <button class="chip" data-plus="500000">+50만</button>
       <button class="chip" data-plus="0">지움</button>
     </div>
-    <label class="paidline" id="paidLine"><input type="checkbox" id="fPaid" checked>수금 완료</label>
+    <div class="paidline" id="paidLine">
+      <button class="pbtn" id="paidYes" aria-pressed="true">수금 완료</button>
+      <button class="pbtn no" id="paidNo" aria-pressed="false">미수금</button>
+    </div>
     <button class="add" id="addBtn">매출 추가</button>
   </div>
 
@@ -235,6 +241,7 @@ function render(){
       return '<div class="item">'
         + '<div class="day">'+d+'일</div>'
         + '<div class="body"><div class="t">'+esc(e.memo || e.cat)+'</div><div class="s">'+sub+'</div></div>'
+        + (e.type==='in' && !e.paid ? '<button class="paybtn" data-pay="'+e.id+'">수금</button>' : '')
         + '<div class="money num" style="color:'+(e.type==='in'?'var(--in)':'var(--out)')+'">'+(e.type==='in'?'+':'−')+won(e.amt)+'</div>'
         + '<button class="del" data-del="'+e.id+'" aria-label="삭제">×</button>'
         + '</div>';
@@ -291,6 +298,15 @@ function syncDate(){
   document.getElementById('fDate').value = d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 }
 
+let paidState = true;
+function setPaid(v){
+  paidState = v;
+  document.getElementById('paidYes').setAttribute('aria-pressed', v);
+  document.getElementById('paidNo').setAttribute('aria-pressed', !v);
+}
+document.getElementById('paidYes').onclick = ()=>setPaid(true);
+document.getElementById('paidNo').onclick  = ()=>setPaid(false);
+
 const amtEl = document.getElementById('fAmt');
 amtEl.addEventListener('input', ()=>{
   const n = onlyNum(amtEl.value);
@@ -316,15 +332,21 @@ document.getElementById('addBtn').onclick = async ()=>{
     cat: document.getElementById('fCat').value,
     memo: document.getElementById('fMemo').value.trim(),
     amt,
-    paid: tab==='in' ? document.getElementById('fPaid').checked : true
+    paid: tab==='in' ? paidState : true
   });
   await store.save(data);
-  amtEl.value=''; document.getElementById('fMemo').value=''; document.getElementById('fPaid').checked = true;
+  amtEl.value=''; document.getElementById('fMemo').value=''; setPaid(true);
   view = new Date(Number(date.slice(0,4)), Number(date.slice(5,7))-1, 1);
   render();
 };
 
 document.getElementById('list').addEventListener('click', async e=>{
+  const pay = e.target.closest('[data-pay]');
+  if(pay){
+    const t = data.entries.find(x=>x.id === Number(pay.dataset.pay));
+    if(t){ t.paid = true; await store.save(data); render(); }
+    return;
+  }
   const btn = e.target.closest('[data-del]');
   if(!btn) return;
   if(!confirm('이 내역을 지울까요?')) return;
